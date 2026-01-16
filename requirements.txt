@@ -1,0 +1,19 @@
+# NVIDIA NeMo Data Designer Client
+nemo-microservices
+
+# Data manipulation and analysis
+pandas
+numpy
+
+# HTTP client libraries
+requests
+aiohttp
+
+# Type hints and extensions
+typing-extensions
+
+# Logging
+python-json-logger
+
+# Terminal formatting and output
+rich
