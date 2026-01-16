@@ -1,8 +1,7 @@
 # Vehicle Simulator Using NVIDIA NeMo Microservices
 
-NVIDIA NeMo microservices are an API-first set of tools that consists of a Data Designer, which designs synthetic datasets from scratch or seed using AI models, statistical sampling, and configurable data schemas.
+NVIDIA NeMo microservices are an API-first set of tools that consists of a Data Designer, which designs synthetic datasets from scratch or seed using AI models, statistical sampling, and configurable data schemas. In this Vehicle Simulator demo, I'm using NeMo Data Designer alongside data schemas from [DIMO](https://dimo.org) to showcase how AI models can be used to simulate vehicle data for a DIMO developer sandbox.
 
-In this Vehicle Simulator demo, I'm using NeMo Data Designer alongside data schemas from [DIMO](https://dimo.org) to showcase how AI models can be used to simulate vehicle data for a DIMO developer sandbox.
 ---
 
 ## Prerequisites
