@@ -1,0 +1,63 @@
+[
+  {
+    "sample_id": 0,
+    "category": "location_data",
+    "subcategory": "approximate_location",
+    "telemetry_value": "37.7749,-122.4194"
+  },
+  {
+    "sample_id": 1,
+    "category": "location_data",
+    "subcategory": "approximate_location",
+    "telemetry_value": "34.0522,-118.2437"
+  },
+  {
+    "sample_id": 2,
+    "category": "location_data",
+    "subcategory": "latitude_longitude",
+    "telemetry_value": "34.0522,-118.2437"
+  },
+  {
+    "sample_id": 3,
+    "category": "location_data",
+    "subcategory": "latitude_longitude",
+    "telemetry_value": ""
+  },
+  {
+    "sample_id": 4,
+    "category": "location_data",
+    "subcategory": "approximate_location",
+    "telemetry_value": "40.7128,-74.0060"
+  },
+  {
+    "sample_id": 5,
+    "category": "location_data",
+    "subcategory": "location_privacy_zones",
+    "telemetry_value": "zone_7"
+  },
+  {
+    "sample_id": 6,
+    "category": "location_data",
+    "subcategory": "location_privacy_zones",
+    "telemetry_value": "3",
+    "unit": "m"
+  },
+  {
+    "sample_id": 7,
+    "category": "location_data",
+    "subcategory": "altitude",
+    "telemetry_value": "1250.3"
+  },
+  {
+    "sample_id": 8,
+    "category": "location_data",
+    "subcategory": "approximate_location",
+    "telemetry_value": "40.7128,-74.0060"
+  },
+  {
+    "sample_id": 9,
+    "category": "location_data",
+    "subcategory": "altitude",
+    "telemetry_value": "1250.3"
+  }
+]

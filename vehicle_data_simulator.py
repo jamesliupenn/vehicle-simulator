@@ -23,6 +23,7 @@ from nemo_microservices.data_designer.essentials import (
     UniformSamplerParams,
 )
 import json
+import argparse
 
 
 # ============================================================
@@ -75,13 +76,10 @@ def setup_model_configuration():
     # Descriptive alias for our use case
     MODEL_ALIAS = "nemotron-nano-v3"
     
-    # System prompt - disables reasoning for this model
-    SYSTEM_PROMPT = "/no_think"
-    
     print(f"Model Provider: {MODEL_PROVIDER}")
     print(f"Model ID: {MODEL_ID}")
     print(f"Model Alias: {MODEL_ALIAS}")
-    
+
     # Create model configuration
     model_configs = [
         ModelConfig(
@@ -89,9 +87,9 @@ def setup_model_configuration():
             model=MODEL_ID,
             provider=MODEL_PROVIDER,
             inference_parameters=InferenceParameters(
-                temperature=0.25,      # Controls randomness (0=deterministic, 1=creative)
-                top_p=1.0,           # Nucleus sampling parameter
-                max_tokens=1024,     # Maximum length of generated text
+                temperature=0.5,       # Slightly higher for more varied text generation
+                top_p=1.0,            # Nucleus sampling parameter
+                max_tokens=1024,      # Maximum length of generated text
             ),
         )
     ]
@@ -206,22 +204,43 @@ def define_dimo_categories():
 # STEP 4: Create Sampler Columns
 # ============================================================
 
-def create_category_subcategory_columns(config_builder, categories, model_alias):
+def create_category_subcategory_columns(config_builder, categories, filter_category=None, filter_subcategory=None):
     """
     Create sampler columns for category and subcategory
-    
+
     NeMo Data Designer uses "samplers" to generate different types of data.
     For DIMO data, we need:
     - A category sampler (picks which main category)
     - A subcategory sampler (picks which subcategory within that category)
+
+    Args:
+        filter_category: Optional specific category to generate (e.g., "location_data")
+        filter_subcategory: Optional specific subcategory to generate (e.g., "latitude_longitude")
     """
     print("="*60)
     print("STEP 4: Creating Sampler Columns")
     print("="*60)
-    
-    # Get list of all categories
-    category_list = list(categories.keys())
-    
+
+    # Apply filters if specified
+    filtered_categories = categories
+    if filter_category and filter_subcategory:
+        # Filter to specific category and subcategory
+        if filter_category in categories and filter_subcategory in categories[filter_category]:
+            filtered_categories = {filter_category: [filter_subcategory]}
+            print(f"\n   Filtering to: {filter_category} -> {filter_subcategory}")
+        else:
+            print(f"\n   ⚠ Warning: Filter combination not found, using all categories")
+    elif filter_category:
+        # Filter to specific category only
+        if filter_category in categories:
+            filtered_categories = {filter_category: categories[filter_category]}
+            print(f"\n   Filtering to category: {filter_category}")
+        else:
+            print(f"\n   ⚠ Warning: Category '{filter_category}' not found, using all categories")
+
+    # Get list of filtered categories
+    category_list = list(filtered_categories.keys())
+
     # Step 4a: Create CATEGORY column sampler
     print("\n4a. Setting up Category Sampler...")
     config_builder.add_column(
@@ -234,30 +253,30 @@ def create_category_subcategory_columns(config_builder, categories, model_alias)
         )
     )
     print(f"   ✓ Added 'category' column with {len(category_list)} categories")
-    
+
     # Step 4b: Create SUBCATEGORY column sampler
     print("\n4b. Setting up Subcategory Sampler...")
-    
+
     # Build subcategory mapping: each category maps to its subcategories
     subcategory_mapping = {}
-    for category, subcategories in categories.items():
+    for category, subcategories in filtered_categories.items():
         subcategory_mapping[category] = subcategories
-    
+
     config_builder.add_column(
         SamplerColumnConfig(
             name="subcategory",
             sampler_type=SamplerType.SUBCATEGORY,
-            params=SubcategorySamplerParams( 
+            params=SubcategorySamplerParams(
                 category="category",
-                values=subcategory_mapping 
+                values=subcategory_mapping
             )
         )
     )
-    
-    total_subcategories = sum(len(subs) for subs in categories.values())
+
+    total_subcategories = sum(len(subs) for subs in filtered_categories.values())
     print(f"   ✓ Added 'subcategory' column with {total_subcategories} total subcategories")
     print("   ✓ Subcategories are linked to their parent categories\n")
-    
+
     return config_builder
 
 
@@ -267,18 +286,43 @@ def create_category_subcategory_columns(config_builder, categories, model_alias)
 
 def add_telemetry_value_column(config_builder, model_alias):
     print("="*60)
-    print("STEP 5: Adding Telemetry Value Generation Column")
+    print("STEP 5: Adding Telemetry Value Generation Columns")
     print("="*60)
-    
-    # Use simplified API instead of LLMTextColumnConfig
+
+    # Add telemetry value column - force string output by asking for formatted response
     config_builder.add_column(
         name="telemetry_value",
-        column_type="llm-text",  # String type instead of LLMTextColumnConfig object
+        column_type="llm-text",
         model_alias=model_alias,
-        prompt="Generate a realistic telemetry value for {{category}} - {{subcategory}}. Return only the numeric value with units."
+        prompt="""For the telemetry signal {{category}} - {{subcategory}}, provide a realistic value.
+Format your response as: value=X where X is the measurement.
+Examples:
+- For vehicle_speed: value=65.5
+- For latitude_longitude: value=37.7749,-122.4194
+- For state_of_charge: value=85.2
+- For ignition_status: value=on
+- For odometer_reading: value=45823.7
+Reply with ONLY the format "value=X" and nothing else."""
     )
-    
     print("✓ Added 'telemetry_value' column")
+
+    # Add unit column
+    config_builder.add_column(
+        name="unit",
+        column_type="llm-text",
+        model_alias=model_alias,
+        prompt="""For {{category}} - {{subcategory}}, what unit should be used?
+Format your response as: unit=X where X is the unit symbol or name.
+For coordinate data (latitude_longitude, altitude), use: unit=none
+For speed: unit=km/h
+For temperature: unit=°C
+For battery percentage: unit=%
+For pressure: unit=kPa
+For binary/text values: unit=none
+Reply with ONLY the format "unit=X" and nothing else."""
+    )
+    print("✓ Added 'unit' column")
+
     return config_builder
 
 # ============================================================
@@ -291,28 +335,44 @@ def generate_dimo_dataset(client, config_builder, num_samples=10):
     print("="*60)
     print(f"Generating {num_samples} samples...")
     print("This may take a few moments...\n")
-    
+
     try:
         print("Calling client.preview()...")
         preview_result = client.preview(
             config_builder,
             num_records=num_samples
         )
-        
+
         print(f"✓ Preview completed")
         print(f"Result type: {type(preview_result)}")
-        
+
         # Check different ways to access the data
         dataset = None
-        
+
         if preview_result is None:
             print("❌ preview_result is None!")
             return None
-            
+
+        # Check if there were errors
+        if hasattr(preview_result, 'errors') and preview_result.errors:
+            print(f"⚠ Preview completed with errors:")
+            for error in preview_result.errors:
+                print(f"   - {error}")
+
         # Try different attribute names
         if hasattr(preview_result, 'dataset'):
             dataset = preview_result.dataset
             print(f"✓ Found .dataset attribute")
+
+            # Check if dataset is None even though attribute exists
+            if dataset is None:
+                print("❌ .dataset attribute exists but is None")
+                print(f"⚠ Available attributes: {[attr for attr in dir(preview_result) if not attr.startswith('_')]}")
+
+                # Try to get more info about the preview result
+                if hasattr(preview_result, '__dict__'):
+                    print(f"⚠ preview_result.__dict__: {preview_result.__dict__}")
+
         elif hasattr(preview_result, 'data'):
             dataset = preview_result.data
             print(f"✓ Found .data attribute")
@@ -321,17 +381,17 @@ def generate_dimo_dataset(client, config_builder, num_samples=10):
             print(f"✓ Using preview_result directly (iterable)")
         else:
             print(f"⚠ Available attributes: {[attr for attr in dir(preview_result) if not attr.startswith('_')]}")
-            
-        if dataset is not None:
+
+        if dataset is not None and len(dataset) > 0:
             print(f"✓ Dataset type: {type(dataset)}")
             print(f"✓ Successfully generated {len(dataset)} samples!")
             print("\nFirst sample:")
             print(dataset.head(1))
         else:
-            print("❌ Could not extract dataset from preview_result")
-        
+            print("❌ Could not extract dataset from preview_result or dataset is empty")
+
         return dataset
-        
+
     except Exception as e:
         print(f"✗ Error during generation: {e}")
         import traceback
@@ -368,11 +428,29 @@ def save_and_display_results(dataset, output_file="dimo_telemetry_data.json"):
             "category": row["category"],
             "subcategory": row["subcategory"]
         }
-        
-        # Only add telemetry_value if it exists
+
+        # Parse telemetry_value if it exists (extract from "value=X" format)
         if "telemetry_value" in dataset.columns:
-            record["telemetry_value"] = row["telemetry_value"]
-        
+            raw_value = str(row["telemetry_value"]).strip()
+            # Try to extract value from "value=X" format
+            if raw_value.startswith("value="):
+                record["telemetry_value"] = raw_value.replace("value=", "", 1)
+            else:
+                record["telemetry_value"] = raw_value
+
+        # Parse unit if it exists (extract from "unit=X" format)
+        if "unit" in dataset.columns:
+            raw_unit = str(row["unit"]).strip()
+            # Try to extract unit from "unit=X" format
+            if raw_unit.startswith("unit="):
+                unit_value = raw_unit.replace("unit=", "", 1)
+            else:
+                unit_value = raw_unit
+
+            # Only add unit if it's not empty or "none"
+            if unit_value and unit_value.lower() not in ['none', 'null', 'n/a', '']:
+                record["unit"] = unit_value
+
         data_list.append(record)
     
     # Save to file
@@ -391,7 +469,12 @@ def save_and_display_results(dataset, output_file="dimo_telemetry_data.json"):
         print(f"  Category: {sample['category']}")
         print(f"  Subcategory: {sample['subcategory']}")
         if "telemetry_value" in sample:
-            print(f"  Value: {sample['telemetry_value']}")
+            value_display = f"{sample['telemetry_value']}"
+            if "unit" in sample:
+                value_display += f" {sample['unit']}"
+            print(f"  Value: {value_display}")
+        elif "unit" in sample:
+            print(f"  Unit: {sample['unit']}")
     
     # Statistics
     print(f"\n{'='*60}")
@@ -414,45 +497,52 @@ def save_and_display_results(dataset, output_file="dimo_telemetry_data.json"):
 # MAIN EXECUTION
 # ============================================================
 
-def main():
+def main(filter_category=None, filter_subcategory=None, num_samples=10):
     """
     Main execution function - orchestrates all steps
+
+    Args:
+        filter_category: Optional specific category to generate (e.g., "location_data")
+        filter_subcategory: Optional specific subcategory to generate (e.g., "latitude_longitude")
+        num_samples: Number of samples to generate (default: 10)
     """
     print("\n" + "="*60)
     print("DIMO VEHICLE TELEMETRY DATA GENERATOR")
     print("Using NVIDIA NeMo Data Designer")
     print("="*60 + "\n")
-    
+
     try:
         # STEP 1: Initialize client
         client = initialize_nemo_client()
-        
+
         # STEP 2: Configure model
         config_builder, model_alias = setup_model_configuration()
-        
+
         # STEP 3: Define categories
         categories = define_dimo_categories()
-        
-        # STEP 4: Create category/subcategory columns
+
+        # STEP 4: Create category/subcategory columns (with optional filtering)
         config_builder = create_category_subcategory_columns(
-            config_builder, categories, model_alias
+            config_builder, categories,
+            filter_category=filter_category,
+            filter_subcategory=filter_subcategory
         )
-        
+
         # STEP 5: Add value generation column
         config_builder = add_telemetry_value_column(config_builder, model_alias)
-        
+
         # STEP 6: Generate dataset
-        dataset = generate_dimo_dataset(client, config_builder, num_samples=10)
-        
+        dataset = generate_dimo_dataset(client, config_builder, num_samples=num_samples)
+
         # STEP 7: Save and display
         save_and_display_results(dataset)
-        
+
         print("\n" + "="*60)
         print("✓ GENERATION COMPLETE!")
         print("="*60)
         print("\nYour DIMO telemetry dataset is ready!")
         print("Check 'dimo_telemetry_data.json' for the full dataset.\n")
-        
+
     except Exception as e:
         print(f"\n✗ Error occurred: {e}")
         print("\nTroubleshooting tips:")
@@ -464,4 +554,61 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="DIMO Vehicle Telemetry Data Generator using NeMo Data Designer",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Generate all categories (default):
+  python vehicle_data_simulator.py
+
+  # Generate only latitude_longitude:
+  python vehicle_data_simulator.py --category location_data --subcategory latitude_longitude
+
+  # Generate all location_data subcategories:
+  python vehicle_data_simulator.py --category location_data
+
+  # Generate 50 samples:
+  python vehicle_data_simulator.py --samples 50
+
+  # Combine filters with custom sample count:
+  python vehicle_data_simulator.py --category location_data --subcategory latitude_longitude --samples 20
+        """
+    )
+
+    parser.add_argument(
+        "--category",
+        "-c",
+        type=str,
+        default=None,
+        help="Filter to a specific category (e.g., 'location_data', 'battery_charging')"
+    )
+
+    parser.add_argument(
+        "--subcategory",
+        "-s",
+        type=str,
+        default=None,
+        help="Filter to a specific subcategory (e.g., 'latitude_longitude'). Requires --category to be set."
+    )
+
+    parser.add_argument(
+        "--samples",
+        "-n",
+        type=int,
+        default=10,
+        help="Number of samples to generate (default: 10)"
+    )
+
+    args = parser.parse_args()
+
+    # Validate that subcategory requires category
+    if args.subcategory and not args.category:
+        parser.error("--subcategory requires --category to be specified")
+
+    # Run main with parsed arguments
+    main(
+        filter_category=args.category,
+        filter_subcategory=args.subcategory,
+        num_samples=args.samples
+    )

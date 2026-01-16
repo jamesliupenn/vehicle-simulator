@@ -168,8 +168,39 @@ pip install -r requirements.txt
 
 ### Step 2: Run the Generator
 
+**Basic usage (generates all categories):**
 ```bash
-python dimo_telemetry_generator.py
+python vehicle_data_simulator.py
+```
+
+**Filter to specific category and subcategory:**
+```bash
+python vehicle_data_simulator.py --category location_data --subcategory latitude_longitude
+```
+
+**Short form:**
+```bash
+python vehicle_data_simulator.py -c location_data -s latitude_longitude
+```
+
+**Generate only a specific category (all subcategories):**
+```bash
+python vehicle_data_simulator.py --category battery_charging
+```
+
+**Custom number of samples:**
+```bash
+python vehicle_data_simulator.py --samples 50
+```
+
+**Combine filters with sample count:**
+```bash
+python vehicle_data_simulator.py -c location_data -s latitude_longitude -n 100
+```
+
+**View help:**
+```bash
+python vehicle_data_simulator.py --help
 ```
 
 **Output:** `dimo_telemetry_data.json` with synthetic telemetry data
@@ -203,32 +234,77 @@ The output data is saved in `dimo_telemetry_data.json` within the working direct
 
 ### Generated Data Format
 
+Each record contains:
+- `sample_id`: Unique identifier for the sample
+- `category`: Main telemetry category (e.g., "location_data", "battery_charging")
+- `subcategory`: Specific telemetry signal (e.g., "latitude_longitude", "state_of_charge")
+- `telemetry_value`: The actual measurement value
+- `unit`: Unit of measurement (optional, omitted for coordinate data and binary values)
+
 ```json
 [
   {
     "sample_id": 0,
-    "category": "battery_charging",
-    "subcategory": "state_of_charge",
-    "telemetry_value": "85.3%"
+    "category": "location_data",
+    "subcategory": "latitude_longitude",
+    "telemetry_value": "37.7749,-122.4194"
   },
   {
     "sample_id": 1,
-    "category": "engine_metrics",
-    "subcategory": "engine_rpm",
-    "telemetry_value": "2450 RPM"
+    "category": "battery_charging",
+    "subcategory": "state_of_charge",
+    "telemetry_value": "85.3",
+    "unit": "%"
+  },
+  {
+    "sample_id": 2,
+    "category": "vehicle_info_status",
+    "subcategory": "vehicle_speed",
+    "telemetry_value": "65.5",
+    "unit": "km/h"
   }
 ]
 ```
 
 ---
 
+### Command-Line Arguments
+
+The generator supports several command-line arguments for filtering and customization:
+
+| Argument | Short | Description | Example |
+|----------|-------|-------------|---------|
+| `--category` | `-c` | Filter to a specific category | `location_data`, `battery_charging` |
+| `--subcategory` | `-s` | Filter to a specific subcategory (requires `--category`) | `latitude_longitude`, `state_of_charge` |
+| `--samples` | `-n` | Number of samples to generate (default: 10) | `50`, `100` |
+| `--help` | `-h` | Show help message with all options | - |
+
+**Available Categories:**
+- `vehicle_info_status` - Odometer, speed, ignition, etc.
+- `location_data` - GPS coordinates, altitude
+- `battery_charging` - State of charge, charging status
+- `engine_metrics` - RPM, throttle, temperature
+- `fuel_system` - Fuel type, level, percentage
+- `tire_pressure` - All four wheels
+- `doors_windows` - Status of doors and windows
+- `diagnostics` - Trouble codes, engine load
+- `environmental` - Air temperature
+- `device_connectivity` - WiFi, GPS satellites
+
+**Example: Generate 100 latitude/longitude samples**
+```bash
+python vehicle_data_simulator.py -c location_data -s latitude_longitude -n 100
+```
+
+---
+
 ### Customization
 
-#### Change Number of Samples
+#### Change Number of Samples (via CLI)
 
-Edit line in `main()`:
-```python
-dataset = generate_dimo_dataset(client, config_builder, num_samples=100)
+Use the `--samples` or `-n` flag:
+```bash
+python vehicle_data_simulator.py --samples 100
 ```
 
 #### Modify Model Parameters
